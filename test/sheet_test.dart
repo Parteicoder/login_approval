@@ -1,3 +1,6 @@
+import 'dart:ui' show Tristate;
+
+import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:login_approval/login_approval.dart';
 import 'package:material_ui/material_ui.dart';
@@ -80,8 +83,8 @@ void main() {
   });
 
   testWidgets('number buttons stay disabled until the enable delay is over', (tester) async {
-    await pumpWith(tester, client.request());
-    await tester.tap(find.text('42'));
+    await pumpWith(tester, client.request(enableDelay: const Duration(seconds: 2)));
+    await tester.tap(find.text('42'), warnIfMissed: false);
     await tester.pump();
     expect(client.approved, isEmpty, reason: 'too early');
     await clock.advance(tester, const Duration(seconds: 2));
@@ -132,7 +135,7 @@ void main() {
   });
 
   testWidgets("'No, this wasn't me' works at once, without the delay", (tester) async {
-    await pumpWith(tester, client.request());
+    await pumpWith(tester, client.request(enableDelay: const Duration(seconds: 2)));
     await tester.tap(find.text("No, this wasn't me"));
     await tester.pump();
     expect(client.denied, ['r1']);
@@ -213,7 +216,7 @@ void main() {
         mode: LoginApprovalInputMode.type,
         enableDelay: Duration.zero,
       );
-      controller.dismiss();
+      controller.dismiss(requestId: 'r1');
       await clock.advance(tester, const Duration(seconds: 3));
       expect(controller.current?.id, 'r2');
       expect(find.text('47'), findsNothing);
@@ -250,6 +253,94 @@ void main() {
     );
     expect(tester.takeException(), isNull);
     expect(find.text('Is this you signing in?'), findsOneWidget);
+    await finish(tester);
+  });
+
+  testWidgets('number buttons are real buttons for screen readers', (tester) async {
+    final handle = tester.ensureSemantics();
+    await pumpWith(tester, client.request());
+    final data = tester.getSemantics(find.widgetWithText(FilledButton, '42'));
+    expect(data.label, contains('42'));
+    expect(data.flagsCollection.isButton, isTrue);
+    expect(data.flagsCollection.isEnabled, Tristate.isTrue);
+    expect(data.getSemanticsData().hasAction(SemanticsAction.tap), isTrue);
+    handle.dispose();
+    await finish(tester);
+  });
+
+  testWidgets('a disabled number button says so to screen readers', (tester) async {
+    final handle = tester.ensureSemantics();
+    await pumpWith(tester, client.request(enableDelay: const Duration(seconds: 5)));
+    final data = tester.getSemantics(find.widgetWithText(FilledButton, '42'));
+    expect(data.getSemanticsData().hasAction(SemanticsAction.tap), isFalse);
+    handle.dispose();
+    await finish(tester);
+  });
+
+  testWidgets('the buttons switch on by themselves when the delay is over', (tester) async {
+    await pumpWith(tester, client.request(enableDelay: const Duration(seconds: 2)));
+    FilledButton button() => tester.widget<FilledButton>(find.widgetWithText(FilledButton, '42'));
+    expect(button().onPressed, isNull);
+    await clock.advance(tester, const Duration(seconds: 2));
+    expect(button().onPressed, isNotNull);
+    await finish(tester);
+  });
+
+  testWidgets('a new request restarts the delay for its own buttons', (tester) async {
+    await pumpWith(tester, client.request(enableDelay: const Duration(seconds: 2)));
+    await clock.advance(tester, const Duration(seconds: 2));
+    client.pending = client.request(
+      id: 'r2',
+      choices: [31, 52, 64],
+      enableDelay: const Duration(seconds: 2),
+    );
+    controller.dismiss(requestId: 'r1');
+    await clock.advance(tester, const Duration(seconds: 3));
+    expect(controller.current?.id, 'r2');
+    final button = tester.widget<FilledButton>(find.widgetWithText(FilledButton, '52'));
+    expect(button.onPressed, isNull, reason: 'fresh request, fresh delay');
+    await clock.advance(tester, const Duration(seconds: 2));
+    await tester.tap(find.text('52'));
+    await tester.pump();
+    expect(client.approved, [('r2', 52)]);
+    await finish(tester);
+  });
+
+  testWidgets('the host follows a swapped controller', (tester) async {
+    // MaterialApp.home is built once, so drive the swap through a notifier.
+    final other = LoginApprovalController(client: client, clock: clock.call);
+    final current = ValueNotifier<LoginApprovalController>(controller);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ValueListenableBuilder<LoginApprovalController>(
+          valueListenable: current,
+          builder: (context, c, _) =>
+              LoginApprovalHost(controller: c, child: const Scaffold(body: Text('app'))),
+        ),
+      ),
+    );
+    current.value = other;
+    await tester.pump();
+    client.pending = client.request(id: 'o1');
+    other.start();
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('Is this you signing in?'), findsOneWidget);
+    other.dispose();
+    current.dispose();
+    await finish(tester);
+  });
+
+  testWidgets('a stale tap on a replaced request sends nothing', (tester) async {
+    await pumpWith(tester, client.request());
+    final stale = tester.widget<FilledButton>(find.widgetWithText(FilledButton, '42')).onPressed!;
+    client.pending = client.request(id: 'r2', choices: [31, 52, 64]);
+    controller.dismiss(requestId: 'r1');
+    await clock.advance(tester, const Duration(seconds: 3));
+    expect(controller.current?.id, 'r2');
+    stale();
+    await tester.pump();
+    expect(client.approved, isEmpty, reason: 'the old button belonged to r1');
     await finish(tester);
   });
 

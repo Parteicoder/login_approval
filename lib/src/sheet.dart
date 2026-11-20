@@ -32,6 +32,7 @@ class LoginApprovalSheet extends StatefulWidget {
 class _LoginApprovalSheetState extends State<LoginApprovalSheet> {
   final _field = TextEditingController();
   Timer? _tick;
+  Timer? _delayTimer;
   String? _id;
 
   @override
@@ -59,11 +60,21 @@ class _LoginApprovalSheetState extends State<LoginApprovalSheet> {
     _id = id;
     _tick?.cancel();
     _tick = null;
+    _delayTimer?.cancel();
+    _delayTimer = null;
     _field.clear();
-    if (id != null) {
-      _tick = Timer.periodic(const Duration(milliseconds: 250), (_) {
+    final request = widget.controller.current;
+    final shownAt = widget.controller.shownAt;
+    if (request != null && shownAt != null) {
+      _tick = Timer.periodic(const Duration(seconds: 1), (_) {
         if (mounted) setState(() {});
       });
+      final wait = request.enableDelay - widget.controller.now().difference(shownAt);
+      if (!wait.isNegative) {
+        _delayTimer = Timer(wait, () {
+          if (mounted) setState(() {});
+        });
+      }
     }
   }
 
@@ -71,6 +82,7 @@ class _LoginApprovalSheetState extends State<LoginApprovalSheet> {
   void dispose() {
     widget.controller.removeListener(_sync);
     _tick?.cancel();
+    _delayTimer?.cancel();
     _field.dispose();
     super.dispose();
   }
@@ -160,16 +172,10 @@ class _LoginApprovalSheetState extends State<LoginApprovalSheet> {
           alignment: WrapAlignment.center,
           children: [
             for (final n in request.choices)
-              Semantics(
-                button: true,
-                label: '$n',
-                excludeSemantics: true,
-                enabled: ready,
-                child: FilledButton(
-                  onPressed: ready ? () => unawaited(c.approve(n)) : null,
-                  style: FilledButton.styleFrom(minimumSize: const Size(88, 64)),
-                  child: Text('$n', style: theme.textTheme.headlineMedium),
-                ),
+              FilledButton(
+                onPressed: ready ? () => unawaited(c.approve(n, requestId: request.id)) : null,
+                style: FilledButton.styleFrom(minimumSize: const Size(88, 64)),
+                child: Text('$n', style: theme.textTheme.headlineMedium),
               ),
           ],
         )
@@ -181,7 +187,7 @@ class _LoginApprovalSheetState extends State<LoginApprovalSheet> {
             final valid =
                 value.text.length == 2 && typed != null && LoginApprovalRequest.isValidNumber(typed);
             void submit() {
-              if (ready && valid) unawaited(c.approve(typed));
+              if (ready && valid) unawaited(c.approve(typed, requestId: request.id));
             }
 
             return Column(
@@ -225,7 +231,7 @@ class _LoginApprovalSheetState extends State<LoginApprovalSheet> {
       ),
       const SizedBox(height: 8),
       OutlinedButton(
-        onPressed: c.busy ? null : () => unawaited(c.deny()),
+        onPressed: c.busy ? null : () => unawaited(c.deny(requestId: request.id)),
         style: OutlinedButton.styleFrom(
           foregroundColor: scheme.error,
           minimumSize: const Size.fromHeight(48),
@@ -233,7 +239,7 @@ class _LoginApprovalSheetState extends State<LoginApprovalSheet> {
         child: Text(t.deny),
       ),
       TextButton(
-        onPressed: c.busy ? null : c.dismiss,
+        onPressed: c.busy ? null : () => c.dismiss(requestId: request.id),
         style: TextButton.styleFrom(minimumSize: const Size.fromHeight(48)),
         child: Text(t.notNow),
       ),

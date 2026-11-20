@@ -88,7 +88,7 @@ void main() {
     client.pending = client.request();
     controller.start();
     await tester.pump();
-    controller.dismiss();
+    controller.dismiss(requestId: 'r1');
     await tester.pump();
     controller.stop();
     controller.start();
@@ -181,7 +181,7 @@ void main() {
 
     cTest('sends id and number, then removes the request', (tester) async {
       await shown(tester);
-      final out = await controller.approve(42);
+      final out = await controller.approve(42, requestId: 'r1');
       expect(out, LoginApprovalOutcome.accepted);
       expect(client.approved, [('r1', 42)]);
       expect(controller.current, isNull);
@@ -191,7 +191,7 @@ void main() {
 
     cTest('the same request does not come back after approval', (tester) async {
       await shown(tester);
-      await controller.approve(42);
+      await controller.approve(42, requestId: 'r1');
       await clock.advance(tester, const Duration(seconds: 3));
       expect(controller.current, isNull);
     });
@@ -199,24 +199,24 @@ void main() {
     cTest('a rejected decision removes the request', (tester) async {
       await shown(tester);
       client.approveResult = LoginApprovalOutcome.rejected;
-      expect(await controller.approve(17), LoginApprovalOutcome.rejected);
+      expect(await controller.approve(17, requestId: 'r1'), LoginApprovalOutcome.rejected);
       expect(controller.current, isNull);
     });
 
     cTest('a failed decision keeps the request so the user can retry', (tester) async {
       await shown(tester);
       client.approveResult = LoginApprovalOutcome.failed;
-      expect(await controller.approve(17), LoginApprovalOutcome.failed);
+      expect(await controller.approve(17, requestId: 'r1'), LoginApprovalOutcome.failed);
       expect(controller.current, isNotNull);
       client.approveResult = LoginApprovalOutcome.accepted;
-      expect(await controller.approve(17), LoginApprovalOutcome.accepted);
+      expect(await controller.approve(17, requestId: 'r1'), LoginApprovalOutcome.accepted);
       expect(controller.current, isNull);
     });
 
     cTest('a client that throws gives failed and reports the error', (tester) async {
       await shown(tester);
       client.approveError = StateError('boom');
-      expect(await controller.approve(17), LoginApprovalOutcome.failed);
+      expect(await controller.approve(17, requestId: 'r1'), LoginApprovalOutcome.failed);
       expect(errors, hasLength(1));
       expect(controller.current, isNotNull);
       expect(controller.busy, isFalse);
@@ -225,39 +225,42 @@ void main() {
     cTest('a second call while one is running is ignored', (tester) async {
       await shown(tester);
       client.approveGate = Completer();
-      final first = controller.approve(17);
+      final first = controller.approve(17, requestId: 'r1');
       await tester.pump();
       expect(controller.busy, isTrue);
-      expect(await controller.approve(42), isNull);
-      expect(await controller.deny(), isNull);
+      expect(await controller.approve(42, requestId: 'r1'), isNull);
+      expect(await controller.deny(requestId: 'r1'), isNull);
       client.approveGate!.complete(LoginApprovalOutcome.accepted);
       expect(await first, LoginApprovalOutcome.accepted);
       expect(client.approved, hasLength(1));
       expect(client.denied, isEmpty);
     });
 
-    cTest('a number that was not offered throws and sends nothing', (tester) async {
+    cTest('a number that was not offered sends nothing and is reported', (tester) async {
       await shown(tester);
-      expect(() => controller.approve(99), throwsArgumentError);
+      expect(await controller.approve(99, requestId: 'r1'), isNull);
       expect(client.approved, isEmpty);
+      expect(errors.single, isA<ArgumentError>());
+      expect(controller.current, isNotNull);
     });
 
     cTest('type mode accepts any two-digit number only', (tester) async {
       await shown(tester, client.request(mode: LoginApprovalInputMode.type));
-      expect(() => controller.approve(5), throwsArgumentError);
-      expect(() => controller.approve(100), throwsArgumentError);
-      expect(await controller.approve(63), LoginApprovalOutcome.accepted);
+      expect(await controller.approve(5, requestId: 'r1'), isNull);
+      expect(await controller.approve(100, requestId: 'r1'), isNull);
+      expect(client.approved, isEmpty);
+      expect(await controller.approve(63, requestId: 'r1'), LoginApprovalOutcome.accepted);
     });
 
     cTest('nothing on screen gives null', (tester) async {
-      expect(await controller.approve(42), isNull);
-      expect(await controller.deny(), isNull);
+      expect(await controller.approve(42, requestId: 'r1'), isNull);
+      expect(await controller.deny(requestId: 'r1'), isNull);
     });
 
     cTest('an expired request gives expired and sends nothing', (tester) async {
       await shown(tester, client.request(expiresIn: const Duration(seconds: 5)));
       clock.time = clock.time.add(const Duration(seconds: 6));
-      expect(await controller.approve(42), LoginApprovalOutcome.expired);
+      expect(await controller.approve(42, requestId: 'r1'), LoginApprovalOutcome.expired);
       expect(client.approved, isEmpty);
       expect(controller.current, isNull);
     });
@@ -265,7 +268,7 @@ void main() {
     cTest('a new request cannot replace the one being decided', (tester) async {
       await shown(tester);
       client.approveGate = Completer();
-      final running = controller.approve(17);
+      final running = controller.approve(17, requestId: 'r1');
       await tester.pump();
       client.pending = client.request(id: 'r2');
       await clock.advance(tester, const Duration(seconds: 3));
@@ -279,7 +282,7 @@ void main() {
     cTest('stop during a decision keeps it and drops the request afterwards', (tester) async {
       await shown(tester);
       client.approveGate = Completer();
-      final running = controller.approve(17);
+      final running = controller.approve(17, requestId: 'r1');
       await tester.pump();
       controller.stop();
       expect(controller.current, isNotNull, reason: 'busy request stays until the call ends');
@@ -294,7 +297,7 @@ void main() {
       client.pending = client.request();
       controller.start();
       await tester.pump();
-      expect(await controller.deny(), LoginApprovalOutcome.accepted);
+      expect(await controller.deny(requestId: 'r1'), LoginApprovalOutcome.accepted);
       expect(client.denied, ['r1']);
       expect(controller.current, isNull);
     });
@@ -303,11 +306,135 @@ void main() {
       client.pending = client.request();
       controller.start();
       await tester.pump();
-      controller.dismiss();
+      controller.dismiss(requestId: 'r1');
       await tester.pump();
       expect(client.dismissed, ['r1']);
       await clock.advance(tester, const Duration(seconds: 3));
       expect(controller.current, isNull);
+    });
+  });
+
+  group('review findings', () {
+    Future<void> shown(WidgetTester tester, [LoginApprovalRequest? r]) async {
+      client.pending = r ?? client.request();
+      controller.start();
+      await tester.pump();
+    }
+
+    cTest('sign-out during a failed decision removes the request', (tester) async {
+      await shown(tester);
+      client.approveGate = Completer();
+      final running = controller.approve(17, requestId: 'r1');
+      await tester.pump();
+      controller.stop();
+      client.approveGate!.complete(LoginApprovalOutcome.failed);
+      expect(await running, LoginApprovalOutcome.failed);
+      expect(controller.current, isNull, reason: 'nobody is signed in any more');
+    });
+
+    cTest('a request that runs out during a failed decision is removed', (tester) async {
+      await shown(tester, client.request(expiresIn: const Duration(seconds: 5)));
+      client.approveGate = Completer();
+      final running = controller.approve(17, requestId: 'r1');
+      await clock.advance(tester, const Duration(seconds: 6));
+      client.approveGate!.complete(LoginApprovalOutcome.failed);
+      await running;
+      expect(controller.current, isNull);
+      expect(controller.lastOutcome, LoginApprovalOutcome.expired);
+    });
+
+    cTest('a stale id cannot decide the request that replaced it', (tester) async {
+      await shown(tester);
+      client.pending = client.request(id: 'r2');
+      controller.dismiss(requestId: 'r1');
+      await clock.advance(tester, const Duration(seconds: 3));
+      expect(controller.current?.id, 'r2');
+      expect(await controller.approve(17, requestId: 'r1'), isNull);
+      expect(await controller.deny(requestId: 'r1'), isNull);
+      controller.dismiss(requestId: 'r1');
+      expect(controller.current?.id, 'r2');
+      expect(client.approved, isEmpty);
+      expect(client.denied, isEmpty);
+    });
+
+    cTest('the enable delay is enforced by the controller, not only by the sheet', (tester) async {
+      await shown(tester, client.request(enableDelay: const Duration(seconds: 2)));
+      expect(await controller.approve(17, requestId: 'r1'), isNull);
+      expect(client.approved, isEmpty);
+      await clock.advance(tester, const Duration(seconds: 2));
+      expect(await controller.approve(17, requestId: 'r1'), LoginApprovalOutcome.accepted);
+    });
+
+    cTest('deny: a failing client keeps the request', (tester) async {
+      await shown(tester);
+      client.denyResult = LoginApprovalOutcome.failed;
+      expect(await controller.deny(requestId: 'r1'), LoginApprovalOutcome.failed);
+      expect(controller.current, isNotNull);
+    });
+
+    cTest('a throwing dismiss is reported and does not break anything', (tester) async {
+      final throwing = _ThrowingDismissClient(client);
+      final c = LoginApprovalController(
+        client: throwing,
+        clock: clock.call,
+        onError: (e, _) => errors.add(e),
+      );
+      c.start();
+      await tester.pump();
+      c.dismiss(requestId: 'r1');
+      await tester.pump();
+      expect(errors, hasLength(1));
+      expect(c.current, isNull);
+      c.dispose();
+    });
+
+    cTest('nothing polls in the background, resume polls once', (tester) async {
+      final gate = Completer<LoginApprovalRequest?>();
+      final slow = _SlowClient(gate.future);
+      final c = LoginApprovalController(client: slow, clock: clock.call);
+      c.start();
+      c.setForeground(false);
+      gate.complete(null);
+      await tester.pump();
+      final n = slow.fetches;
+      await clock.advance(tester, const Duration(minutes: 1));
+      expect(slow.fetches, n);
+      c.setForeground(true);
+      await tester.pump();
+      expect(slow.fetches, n + 1);
+      c.dispose();
+    });
+
+    cTest('pollNow waits for a poll that is already running', (tester) async {
+      final gate = Completer<LoginApprovalRequest?>();
+      final slow = _SlowClient(gate.future);
+      final c = LoginApprovalController(client: slow, clock: clock.call);
+      c.start();
+      var done = false;
+      unawaited(c.pollNow().then((_) => done = true));
+      await tester.pump();
+      expect(done, isFalse);
+      gate.complete(null);
+      await tester.pump();
+      expect(done, isTrue);
+      expect(slow.fetches, 1, reason: 'no second request');
+      c.dispose();
+    });
+
+    cTest('listeners are told about changes and not after dispose', (tester) async {
+      final c = LoginApprovalController(client: client, clock: clock.call);
+      var notified = 0;
+      c.addListener(() => notified++);
+      client.pending = client.request();
+      c.start();
+      await tester.pump();
+      expect(notified, 1);
+      await c.deny(requestId: 'r1');
+      expect(notified, greaterThanOrEqualTo(3));
+      final n = notified;
+      c.dispose();
+      await clock.advance(tester, const Duration(minutes: 1));
+      expect(notified, n, reason: 'silent after dispose');
     });
   });
 
@@ -333,9 +460,13 @@ void main() {
 class _SlowClient implements LoginApprovalClient {
   _SlowClient(this.result);
   final Future<LoginApprovalRequest?> result;
+  int fetches = 0;
 
   @override
-  Future<LoginApprovalRequest?> fetchPending() => result;
+  Future<LoginApprovalRequest?> fetchPending() {
+    fetches++;
+    return result;
+  }
 
   @override
   Future<LoginApprovalOutcome> approve(String requestId, int number) =>
@@ -346,4 +477,13 @@ class _SlowClient implements LoginApprovalClient {
 
   @override
   Future<void> dismiss(String requestId) async {}
+}
+
+class _ThrowingDismissClient extends FakeClient {
+  _ThrowingDismissClient(FakeClient base) : super(base.clock) {
+    pending = base.request();
+  }
+
+  @override
+  Future<void> dismiss(String requestId) async => throw StateError('offline');
 }

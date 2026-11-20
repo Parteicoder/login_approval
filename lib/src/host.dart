@@ -9,6 +9,11 @@ import 'texts.dart';
 /// Place it in `MaterialApp.builder`. While the sheet is up, the app behind it
 /// can neither be tapped nor focused, and screen readers skip it.
 ///
+/// **Android back button:** the host cannot intercept it. The navigator behind
+/// the sheet still receives it, so back may pop a route you cannot see, or
+/// close the app from the root route. Set `PopScope(canPop: controller.current
+/// == null)` on your root routes if that matters to you.
+///
 /// With [pauseWhenInBackground] the host calls
 /// [LoginApprovalController.setForeground] on lifecycle changes, so polling
 /// stops in the background and runs again right after the app resumes.
@@ -52,6 +57,12 @@ class _LoginApprovalHostState extends State<LoginApprovalHost> with WidgetsBindi
     if (old.controller != widget.controller) {
       old.controller.setForeground(true);
       _apply(WidgetsBinding.instance.lifecycleState);
+    } else if (old.pauseWhenInBackground != widget.pauseWhenInBackground) {
+      if (widget.pauseWhenInBackground) {
+        _apply(WidgetsBinding.instance.lifecycleState);
+      } else {
+        widget.controller.setForeground(true);
+      }
     }
   }
 

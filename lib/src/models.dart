@@ -76,7 +76,11 @@ final class LoginApprovalRequest {
   /// Opaque id, handed back to the client on approve, deny and dismiss.
   final String id;
 
-  /// When the request stops being valid. The sheet only counts down to it.
+  /// When the request stops being valid, **on this device's clock**.
+  ///
+  /// Convert the server's expiry to the device clock (for example "server says
+  /// 90 seconds left" becomes `DateTime.now().add(90 s)`). If the device clock
+  /// runs ahead, requests count as expired and are silently dropped.
   final DateTime expiresAt;
 
   /// Whether the user chooses a number or types it.

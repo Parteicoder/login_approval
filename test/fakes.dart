@@ -61,7 +61,7 @@ class FakeClient implements LoginApprovalClient {
     Duration expiresIn = const Duration(seconds: 90),
     LoginApprovalInputMode mode = LoginApprovalInputMode.choose,
     List<int>? choices,
-    Duration enableDelay = const Duration(seconds: 2),
+    Duration enableDelay = Duration.zero,
     String? warning,
   }) {
     return LoginApprovalRequest(

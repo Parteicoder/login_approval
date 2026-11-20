@@ -7,9 +7,9 @@ details and a number, and the user answers there.
 **This package is UI and polling only.** It has no networking, no storage, no
 cryptography and no biometrics. All security lives in the
 [`LoginApprovalClient`](#the-client-you-implement) you write and in your backend.
-A modified copy of this package can draw a wrong screen, but it can never approve
-anything on its own: your client decides what is sent, and your server decides
-what is accepted.
+A modified copy of this package can draw a wrong screen, but it cannot approve
+anything **if your client follows the three rules below**: your client decides what
+is sent, and your server decides what is accepted.
 
 ## What you get
 
@@ -54,6 +54,12 @@ class MyApprovalClient implements LoginApprovalClient {
 }
 ```
 
+**Three rules your client must follow** (the package cannot enforce them):
+
+1. **Verify the user on every `approve()` call**, freshly, with no grace period. With an Android Keystore key that means `setUserAuthenticationParameters(0, ...)` so each signature needs its own biometric or device credential prompt. A package that calls `approve(id, anything)` without a tap must still get nowhere.
+2. **Build the prompt text and the signed message from your own copy of the server data for that request id**, never from the `LoginApprovalRequest` object or the number that the package passes in. Look the id up in what *you* fetched; unknown id means abort.
+3. **Let the server rebuild the signed message and verify it.** Never trust bytes the client built.
+
 There is deliberately **no `confirmUser()` callback**. Verifying the user and signing
 belong together (for example one biometric-bound signature); a separate callback would
 let the two drift apart.
@@ -64,16 +70,25 @@ carries "the right answer".
 
 ## What your backend should do
 
-This package does not enforce any of the following, but a sign-in approval is only as
-strong as the server behind it. A sound design:
+A sign-in approval is only as strong as the server behind it. The package cannot
+enforce any of this. A sound design:
 
 - Create one request per sign-in attempt, with a random id, a short life (about 90 s) and a **single open request per account**.
 - Generate the number with a cryptographically secure random source. Keep the right answer on the server only.
-- **A wrong number ends the request.** Otherwise a number of three or 90 possibilities can simply be guessed.
+- **Your backend must end the request on the first wrong number; the package cannot.** Otherwise a choice of three, or of 90 possibilities, can simply be guessed.
 - Rate-limit requests per account and per address, to stop prompt bombing. Show the user where and from what the sign-in came.
 - Bind the decision to a device key: the app signs a message that contains the request id, the number, a nonce and the expiry, and the server rebuilds that message itself and checks the signature. Use domain separation so the signature cannot be replayed for anything else.
 - Make every state change atomic (`pending` → `approved` / `denied` / `expired`) and redeem an approval **exactly once**, handing the browser its session only through the browser's own channel.
 - Keep a way back (recovery codes) and log decisions without logging secrets.
+
+## Good to know
+
+- **Device clock:** `LoginApprovalRequest.expiresAt` must be on the *device's* clock. Convert "the server says 90 seconds are left" to `DateTime.now().add(...)`. If the device clock runs ahead, requests count as expired and are dropped without a message.
+- **Feedback:** when a decision is `rejected` or the request `expired`, the sheet simply goes away. Listen to `controller.lastOutcome` (it is a `ChangeNotifier`) to show your own message, for example a snack bar.
+- **Several ids:** `approve`, `deny` and `dismiss` take the `requestId` of the request that was on screen. If the request changed under the user's finger, the call is ignored.
+- **Enable delay:** the controller itself ignores `approve` until `enableDelay` is over, so a custom UI cannot skip it by accident.
+- **Android back button:** the host cannot intercept it. The navigator behind the sheet still receives it, so back may pop a route you cannot see or close the app from the root route. Put `PopScope(canPop: controller.current == null, ...)` on your root routes if that matters to you.
+- **Large text, dark mode, right-to-left** work; the sheet scrolls and sits above the keyboard.
 
 ## Honest limits
 
@@ -84,9 +99,11 @@ second factor, not as phishing-resistant authentication.
 
 ## Accessibility
 
-Buttons are real buttons with semantics, the headline and warning are live regions,
-the sheet scrolls and works at large text sizes, and focus and screen readers are kept
-away from the app behind it. Strings are yours to translate.
+The number buttons are Material buttons with their own label, enabled state and tap
+action (covered by a semantics test), the headline and warning are live regions, the
+sheet scrolls and works at large text sizes, and focus and screen readers are kept away
+from the app behind it. Strings are yours to translate. The package has not been
+checked with TalkBack or VoiceOver on a real device yet.
 
 ## Requirements
 
