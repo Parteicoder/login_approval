@@ -1,0 +1,15 @@
+name: login_approval_example
+description: Example for login_approval.
+publish_to: none
+version: 0.1.0
+
+environment:
+  sdk: ^3.13.2
+  flutter: ">=3.50.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  material_ui: ^1.11.1
+  login_approval:
+    path: ../

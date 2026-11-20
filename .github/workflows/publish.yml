@@ -1,0 +1,32 @@
+name: Publish to pub.dev
+
+# Publishes when a version tag like v0.1.1 is pushed.
+# One-time setup on pub.dev: package Admin -> Automated publishing -> enable GitHub Actions,
+# repository Parteicoder/login_approval, tag pattern v{{version}}, and require the
+# GitHub environment "pub.dev" (create it in the repo settings and limit it to tags).
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+
+permissions: {}
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: pub.dev
+    permissions:
+      contents: read
+      id-token: write # OIDC token for pub.dev, no stored secrets
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: dart-lang/setup-dart@2286a0c042b44434fe26d292bbce8d34f7ec662b # v1.8.2
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          flutter-version: 3.50.0
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test
+      - run: flutter pub publish --force

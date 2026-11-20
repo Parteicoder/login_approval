@@ -1,0 +1,25 @@
+name: login_approval
+description: Approve-a-sign-in UI for Flutter. Polls your backend, shows an "Is this you?" sheet with number matching, and hands the decision back to your app. UI only, no networking, no crypto.
+version: 0.1.0
+repository: https://github.com/Parteicoder/login_approval
+issue_tracker: https://github.com/Parteicoder/login_approval/issues
+topics:
+  - authentication
+  - two-factor-authentication
+  - security
+  - mfa
+  - widget
+
+environment:
+  sdk: ^3.13.2
+  flutter: ">=3.50.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  material_ui: ^1.11.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
