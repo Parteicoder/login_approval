@@ -81,6 +81,24 @@ enforce any of this. A sound design:
 - Make every state change atomic (`pending` → `approved` / `denied` / `expired`) and redeem an approval **exactly once**, handing the browser its session only through the browser's own channel.
 - Keep a way back (recovery codes) and log decisions without logging secrets.
 
+## Push notifications (optional, not included)
+
+The package deliberately has **no push dependency** (no Firebase, no APNs): it only polls. That keeps it free of
+vendor SDKs and of any `google-services.json`. If you want the GitHub-style "ping" when someone signs in, add the
+push in your app and let it call one method:
+
+```dart
+// In your push handler (for example firebase_messaging's onMessage / onMessageOpenedApp):
+await controller.pollNow(); // fetches the pending request right away and shows the sheet
+```
+
+- The push should only be a **wake-up**: no number, browser or account name inside it. The request itself still
+  comes from your backend through `LoginApprovalClient.fetchPending`, so nothing sensitive travels through the
+  push provider.
+- Keep polling as the fallback. A push can be late, dropped, or unavailable (no Play services, notifications off).
+- `pollNow()` does nothing while the controller is stopped (`start()` was not called, for example because nobody is
+  signed in). A push cannot show a request to a signed-out app.
+
 ## Good to know
 
 - **Device clock:** `LoginApprovalRequest.expiresAt` must be on the *device's* clock. Convert "the server says 90 seconds are left" to `DateTime.now().add(...)`. If the device clock runs ahead, requests count as expired and are dropped without a message.
