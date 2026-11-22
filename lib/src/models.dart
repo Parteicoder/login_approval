@@ -20,11 +20,12 @@ enum LoginApprovalInputMode {
   /// Pick the matching number from [LoginApprovalRequest.choices].
   choose,
 
-  /// Type the two-digit number shown in the browser.
+  /// Type the two-digit number shown on the device that is signing in.
   type,
 }
 
-/// One labelled line of context, for example `Browser` / `Chrome on Windows`.
+/// One labelled line of context, for example `Browser` / `Chrome on Windows`
+/// or `App` / `App on Linux`.
 @immutable
 final class LoginApprovalDetail {
   /// Creates a detail line.
@@ -89,7 +90,7 @@ final class LoginApprovalRequest {
   /// The numbers to choose from. Empty in type mode.
   final List<int> choices;
 
-  /// Context lines such as browser, system and time.
+  /// Context lines such as browser or app, system and time.
   final List<LoginApprovalDetail> details;
 
   /// An optional highlighted warning, for example about an unusual sign-in.

@@ -3,9 +3,9 @@ class LoginApprovalTexts {
   /// Creates a text set. Every field has an English default.
   const LoginApprovalTexts({
     this.title = 'Is this you signing in?',
-    this.subtitle = 'A sign-in was started in a browser. Only continue if it was you.',
-    this.chooseNumber = 'Tap the number shown in your browser',
-    this.typeNumber = 'Enter the number shown in your browser',
+    this.subtitle = 'A sign-in was started. Only continue if it was you.',
+    this.chooseNumber = 'Tap the number shown on the device that is signing in',
+    this.typeNumber = 'Enter the number shown on the device that is signing in',
     this.numberLabel = 'Number',
     this.approve = 'Approve',
     this.deny = "No, this wasn't me",
