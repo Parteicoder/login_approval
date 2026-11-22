@@ -174,8 +174,13 @@ class _LoginApprovalSheetState extends State<LoginApprovalSheet> {
             for (final n in request.choices)
               FilledButton(
                 onPressed: ready ? () => unawaited(c.approve(n, requestId: request.id)) : null,
-                style: FilledButton.styleFrom(minimumSize: const Size(88, 64)),
-                child: Text('$n', style: theme.textTheme.headlineMedium),
+                // textStyle (not Text.style): the button then applies its own foreground colour, so the
+                // digits stay readable on the filled background in light and dark themes.
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size(88, 64),
+                  textStyle: theme.textTheme.headlineMedium,
+                ),
+                child: Text('$n'),
               ),
           ],
         )
