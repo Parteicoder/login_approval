@@ -1,8 +1,8 @@
 # login_approval
 
 An "Is this you signing in?" sheet for Flutter, in the style of GitHub Mobile.
-Someone starts a sign-in in a browser, your signed-in app pops up a sheet with the
-details and a number, and the user answers there.
+Someone starts a sign-in in a browser or in another app, your signed-in app pops up a
+sheet with the details and a number, and the user answers there.
 
 **This package is UI and polling only.** It has no networking, no storage, no
 cryptography and no biometrics. All security lives in the
