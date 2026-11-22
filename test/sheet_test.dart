@@ -74,6 +74,20 @@ void main() {
     await finish(tester);
   });
 
+  for (final theme in [
+    ThemeData(colorScheme: const ColorScheme.light()),
+    ThemeData(colorScheme: const ColorScheme.dark()),
+  ]) {
+    testWidgets('number digits use the button foreground colour (${theme.brightness.name})', (tester) async {
+      await pumpWith(tester, client.request(), widget: app(theme: theme));
+      final digits = tester.widget<RichText>(
+        find.descendant(of: find.widgetWithText(FilledButton, '42'), matching: find.byType(RichText)),
+      );
+      expect(digits.text.style?.color, theme.colorScheme.onPrimary);
+      await finish(tester);
+    });
+  }
+
   testWidgets('nothing is drawn without a request', (tester) async {
     await pumpWith(tester, null);
     expect(find.text('Is this you signing in?'), findsNothing);
